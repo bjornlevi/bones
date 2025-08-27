@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Readme{% endblock %}
+{% block content %}
+  <h2>Service Readme</h2>
+  <div class="card">
+    <div class="card-body">
+      <!-- Content is passed in from routes/readme.py -->
+      {{ content|safe }}
+    </div>
+  </div>
+{% endblock %}

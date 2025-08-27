@@ -1,0 +1,35 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5001:5001"
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - authnet
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    env_file: .env
+    volumes:
+      - site-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      interval: 5s
+      retries: 20
+      timeout: 5s
+    networks:
+      - authnet
+
+volumes:
+  site-db-data:
+
+networks:
+  authnet:
+    external: true

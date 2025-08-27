@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Manage Site Users{% endblock %}
+{% block content %}
+<h2>Manage Site Users</h2>
+
+<table class="table table-striped table-bordered">
+  <thead class="table-dark">
+    <tr>
+      <th>ID</th>
+      <th>Username</th>
+      <th>Email</th>
+      <th>Local Role</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+    <tr>
+      <td>{{ user.id }}</td>
+      <td>{{ user.username }}</td>
+      <td>{{ user.email or "—" }}</td>
+      <td>{{ user.role }}</td>
+      <td>
+        {% if user.id != current_user.id %}
+        <form method="post" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" style="display:inline;">
+          <button type="submit"
+                  class="btn btn-sm {{ 'btn-warning' if user.role == 'admin' else 'btn-primary' }}">
+            {{ 'Demote to User' if user.role == 'admin' else 'Promote to Admin' }}
+          </button>
+        </form>
+        {% else %}
+        <span class="text-muted">You</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a href="{{ url_for('main.index') }}" class="btn btn-secondary mt-3">Back to Home</a>
+{% endblock %}

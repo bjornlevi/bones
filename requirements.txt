@@ -1,0 +1,9 @@
+flask
+flask-sqlalchemy
+flask-session
+flask-login
+requests
+markdown
+pymysql
+python-dotenv
+cryptography
