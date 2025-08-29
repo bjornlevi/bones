@@ -1,11 +1,14 @@
 init:
 	./init_env.sh
 
-net:
-	docker network inspect authnet >/dev/null 2>&1 || docker network create authnet
+check-net:
+	@if ! docker network ls --format '{{.Name}}' | grep -q '^authnet$$'; then \
+		echo "❌ Network 'authnet' not found. Please run 'make up' in auth-service first."; \
+		exit 1; \
+	fi
 
-up: net
-	docker compose up --build -d
+up: check-net
+	docker compose up -d --build
 
 down:
 	docker compose down

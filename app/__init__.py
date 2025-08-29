@@ -29,7 +29,7 @@ def create_app():
             raise RuntimeError("[BOOTSTRAP ERROR] AUTH_SERVICE_API_KEY is not set in environment")
 
         username = f"{app.config.get('SITE_NAME', 'site')}_admin"
-        password = app.config["DEFAULT_SITE_ADMIN_PASS"]
+        password = app.config["SITE_ADMIN_PASSWORD"]
 
         # ✅ Step 1: Try login first
         data, status = auth_login(username, password)

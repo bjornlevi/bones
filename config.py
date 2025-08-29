@@ -14,4 +14,4 @@ class Config:
     SESSION_TYPE = os.environ.get("SESSION_TYPE", "filesystem")
 
     SITE_NAME = os.environ.get("SITE_NAME", "site")
-    DEFAULT_SITE_ADMIN_PASS = os.environ.get("DEFAULT_SITE_ADMIN_PASS", "changeme")
+    SITE_ADMIN_PASSWORD = os.environ.get("SITE_ADMIN_PASSWORD", "changeme")
