@@ -1,0 +1,20 @@
+[
+  {
+    "ext_id": "tm-1001",
+    "title": "Green Apples",
+    "email": "alice@example.com",
+    "secret": "coupon: ALPHA-123"
+  },
+  {
+    "ext_id": "tm-1002",
+    "title": "Blue Bananas",
+    "email": "bob@example.com",
+    "secret": "coupon: BETA-456"
+  },
+  {
+    "ext_id": "tm-1003",
+    "title": "Red Oranges",
+    "email": "carol@example.com",
+    "secret": "coupon: GAMMA-789"
+  }
+]

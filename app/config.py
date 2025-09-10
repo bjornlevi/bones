@@ -15,3 +15,10 @@ class Config:
 
     SITE_NAME = os.environ.get("SITE_NAME", "site")
     SITE_ADMIN_PASSWORD = os.environ.get("SITE_ADMIN_PASSWORD", "changeme")
+
+    # 🔐 Vault KMS settings
+    VAULT_ADDR = os.getenv("VAULT_ADDR", "http://vault:8200")
+    VAULT_TOKEN = os.getenv("VAULT_TOKEN", "root")
+    VAULT_TRANSIT_MOUNT = os.getenv("VAULT_TRANSIT_MOUNT", "transit")
+    VAULT_APP_KEY_NAME = os.getenv("VAULT_APP_KEY_NAME", "bones-app-master")
+    VAULT_DBCOL_KEY_NAME = os.getenv("VAULT_DBCOL_KEY_NAME", "bones-dbcol-master")

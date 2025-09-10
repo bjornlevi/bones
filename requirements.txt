@@ -6,4 +6,7 @@ requests
 markdown
 pymysql
 python-dotenv
-cryptography
+cryptography 
+hvac 
+pytest
+pytest-flask

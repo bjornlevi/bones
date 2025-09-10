@@ -34,3 +34,23 @@ reset: down
 	@rm -f .env
 	@docker volume rm $$(docker volume ls -q | grep bones_site-db-data) || true
 	@echo "✅ Reset complete. Run 'make init' to create a new .env."
+
+# ----------------------------
+# 🔐 Encryption Additions
+# ----------------------------
+
+migrate:
+	docker compose exec database sh -lc "mysql -uroot -p$$MYSQL_ROOT_PASSWORD $$MYSQL_DATABASE < /app/migrations/001_init.sql"
+
+ingest:
+	REMOTE_URL=$${REMOTE_URL:-file:///app/tests/data/dummy.json} docker compose exec app python scripts/ingest.py
+
+vault-init:
+	@echo "🔐 Initializing Vault Transit Engine..."
+	docker compose exec vault sh -lc 'export VAULT_ADDR=$$VAULT_ADDR && \
+		vault secrets enable -path=$$VAULT_TRANSIT_MOUNT transit || true && \
+		vault write -f $$VAULT_TRANSIT_MOUNT/keys/$$VAULT_APP_KEY_NAME || true && \
+		vault write -f $$VAULT_TRANSIT_MOUNT/keys/$$VAULT_DBCOL_KEY_NAME || true'
+	@echo "✅ Vault Transit keys initialized"
+
+.PHONY: up down logs shell test fdown fup reset migrate ingest vault-init
