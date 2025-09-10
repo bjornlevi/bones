@@ -1,7 +1,8 @@
 from flask import Flask
 from flask_login import LoginManager
+from app.extensions import db
 from .config import Config
-from .models import db, SiteUser
+from app.models import SiteUser
 from .routes import register_blueprints
 from .auth_client import login as auth_login, userinfo as auth_userinfo, auth_service_request
 import os

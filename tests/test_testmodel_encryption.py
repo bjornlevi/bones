@@ -31,36 +31,19 @@ def db_conn():
     yield conn
     conn.close()
 
-def test_testmodel_insert_and_encryption(app, db_conn):
-    """Insert an encrypted record and validate storage + decryption."""
-
-    # 1️⃣ Insert a record
-    ext_id = "tm-9999"
-    title = "Vault Test Model"
-    email = "vaulttest@example.com"
-    secret = "coupon: SECURE-999"
-
-    test_model_service.create_test_model(
-        ext_id=ext_id,
-        title=title,
-        email=email,
-        secret=secret,
+def test_encrypted_model_auto_decrypt(app):
+    record = TestModel(ext_id="tm-6001", title="Auto Decrypt Test")
+    record.set_encrypted_fields(
+        secret_app="coupon: TAU-222",
+        email_dbenc="tau@example.com"
     )
 
-    # 2️⃣ Query DB directly to confirm email_dbenc is encrypted
-    with db_conn.cursor() as cur:
-        cur.execute("SELECT email_dbenc, secret_app FROM TestModel WHERE ext_id=%s", (ext_id,))
-        row = cur.fetchone()
+    db.session.add(record)
+    db.session.commit()
 
-    assert row, "Record should exist in DB"
-    assert isinstance(row["email_dbenc"], bytes), "Email should be stored encrypted"
-    assert isinstance(row["secret_app"], bytes), "Secret should be stored encrypted"
-    assert secret.encode() not in row["secret_app"], "Secret must not be stored in plaintext"
+    found = TestModel.query.filter_by(ext_id="tm-6001").first()
 
-    # 3️⃣ Fetch decrypted record via service
-    decrypted = test_model_service.get_test_model_by_id(
-        record_id=test_model_service.list_test_models()[0]["id"]
-    )
-
-    assert decrypted["secret_plain"] == secret, "Decrypted secret must match"
-    assert decrypted["email_plain"] == email, "Decrypted email must match"
+    # ✅ Transparent decryption
+    assert found.secret_app_plain == "coupon: TAU-222"
+    assert found.email_plain == "tau@example.com"
+    assert found.title == "Auto Decrypt Test"

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
-from ..models import db, SiteUser
+from app.extensions import db
+from app.models import SiteUser
 
 bp = Blueprint("admin", __name__, url_prefix="/admin", template_folder="../templates/routes/admin")
 
