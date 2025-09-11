@@ -1,4 +1,4 @@
 from app.models.site_user import SiteUser
-from app.models.test_model import TestModel
+from app.models.demo_model import DemoModel
 
-__all__ = ["SiteUser", "TestModel"]
+__all__ = ["SiteUser", "DemoModel"]

@@ -6,6 +6,7 @@ services:
     env_file: .env
     volumes:
       - .:/app
+      - ./keys:/app/keys        # <--- ✅ Mount local keys folder inside container
     depends_on:
       db:
         condition: service_healthy
@@ -24,21 +25,6 @@ services:
       interval: 5s
       retries: 20
       timeout: 5s
-    networks:
-      - authnet
-
-  vault:                    # <-- ✅ Add Vault here, aligned with web and db
-    image: hashicorp/vault:1.16
-    container_name: vault
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-    cap_add:
-      - IPC_LOCK
-    ports:
-      - "8200:8200"
-    command: server -dev
-    env_file: .env
     networks:
       - authnet
 
