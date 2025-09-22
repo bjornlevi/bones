@@ -1,0 +1,32 @@
+services:
+  myapp:
+    build: .
+    container_name: myapp
+    env_file: .env
+    expose:
+      - "5000"              # internal; no host port needed
+    networks: [web]         # must share 'web' with Traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+
+      # Router: match external base path
+      - traefik.http.routers.myapp.rule=PathPrefix(`/myapp`)
+      - traefik.http.routers.myapp.entrypoints=web
+      - traefik.http.routers.myapp.service=myapp
+
+      # Service: forward to the container's internal port
+      - traefik.http.services.myapp.loadbalancer.server.port=5000
+
+      # Middlewares: strip external prefix, then tell the app what it was
+      - traefik.http.middlewares.myapp-strip.stripprefix.prefixes=/myapp
+      - traefik.http.middlewares.myapp-prefix.headers.customrequestheaders.X-Forwarded-Prefix=/myapp
+      - traefik.http.middlewares.myapp-prefix.headers.customrequestheaders.X-Script-Name=/myapp
+
+      # Chain middlewares (order matters: strip first, then set headers)
+      - traefik.http.routers.myapp.middlewares=myapp-strip,myapp-prefix
+
+networks:
+  web:
+    external: true
+    name: web

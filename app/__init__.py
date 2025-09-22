@@ -1,4 +1,5 @@
 from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager
 from app.extensions import db
 from .config import Config
@@ -9,9 +10,24 @@ import os
 
 login_manager = LoginManager()
 
+class ScriptNameFromForwardedPrefix:
+    """Set SCRIPT_NAME so url_for() includes external /prefix."""
+    def __init__(self, app):
+        self.app = app
+    def __call__(self, environ, start_response):
+        prefix = environ.get("HTTP_X_FORWARDED_PREFIX") or environ.get("HTTP_X_SCRIPT_NAME")
+        if prefix:
+            environ["SCRIPT_NAME"] = prefix.rstrip("/")
+        return self.app(environ, start_response)
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Prefix & proxy handling
+    app.wsgi_app = ScriptNameFromForwardedPrefix(app.wsgi_app)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = "main.login"   # adjust if your login route is elsewhere
@@ -71,4 +87,9 @@ def create_app():
 
 
     register_blueprints(app)
+
+    @app.get("/health")
+    def health():  # flat health for container checks
+        return {"status": "ok"}, 200
+
     return app
