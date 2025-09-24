@@ -1,25 +1,43 @@
 services:
-  web:
+  bones:
+    container_name: bones
     build: .
-    ports:
-      - "5001:5001"
+    expose:
+      - "5000"
     env_file: .env
     volumes:
       - .:/app
-      - ./keys:/app/keys        # <--- ✅ Mount local keys folder inside container
+      - ./keys:/app/keys
     depends_on:
-      db:
+      bones-db:
         condition: service_healthy
     networks:
-      - authnet
+      authnet:
+        aliases: [bones]
+      web: {}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      # Route at /bones (strip before forwarding)
+      - traefik.http.routers.bones.rule=PathPrefix(`/bones`)
+      - traefik.http.routers.bones.entrypoints=web
+      - traefik.http.routers.bones.middlewares=bones-strip
+      - traefik.http.middlewares.bones-strip.stripprefix.prefixes=/bones
+      - traefik.http.services.bones.loadbalancer.server.port=5000
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
-  db:
+  bones-db:
+    container_name: bones-db
     image: mysql:8.0
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=caching_sha2_password
     restart: always
     env_file: .env
     volumes:
-      - site-db-data:/var/lib/mysql
+      - bones-db-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
       interval: 5s
@@ -27,10 +45,17 @@ services:
       timeout: 5s
     networks:
       - authnet
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  site-db-data:
+  bones-db-data:
 
 networks:
   authnet:
+    external: true
+  web:
     external: true

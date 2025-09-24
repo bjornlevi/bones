@@ -5,7 +5,7 @@ set -e
 ENV_FILE=".env"
 LOCAL_KEYRING_PATH="./keys/dev-keyring.json"
 CONTAINER_KEYRING_PATH="/app/keys/dev-keyring.json"
-DOCKER_VOLUME="bones-encryted_site-db-data"  # <-- Change if your project name differs
+DOCKER_VOLUME="bones-db-data"  # correct volume name
 
 if [ -f "$ENV_FILE" ]; then
   echo "⚠️  $ENV_FILE already exists. Remove it first if you want to regenerate."
@@ -32,7 +32,7 @@ MYSQL_DATABASE=barebones
 MYSQL_USER=bareuser
 MYSQL_PASSWORD=${MYSQL_PASSWORD}
 MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-MYSQL_HOST=db
+MYSQL_HOST=bones-db
 MYSQL_REQUIRE_SSL=false
 
 FLASK_ENV=development
@@ -41,8 +41,9 @@ SECRET_KEY=${SECRET_KEY}
 SITE_NAME=Bones
 SITE_ADMIN_PASSWORD=${SITE_ADMIN_PASSWORD}
 
+# TALK TO AUTH-SERVICE OVER AUTHNET, HIT /api
 AUTH_SERVICE_URL=http://auth-service:5000/api
-AUTH_SERVICE_API_KEY=replace_with_auth_service_key
+AUTH_SERVICE_API_KEY=replace_with_auth_service_key   # 64 hex chars (token_hex(32))
 
 # Path inside container
 KEYRING_PATH=${CONTAINER_KEYRING_PATH}

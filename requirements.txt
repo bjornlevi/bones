@@ -1,10 +1,11 @@
 flask
 flask-sqlalchemy
+SQLAlchemy>=2.0
 flask-session
 flask-login
 requests
 markdown
-pymysql
+PyMySQL>=1.1.1
 python-dotenv
 cryptography 
 hvac 

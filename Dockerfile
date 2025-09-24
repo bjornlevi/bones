@@ -10,7 +10,7 @@ COPY wsgi.py /app/wsgi.py
 ENV PYTHONPATH=/app
 
 # Gunicorn binds 5000 inside container
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "-w", "2", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:create_app()"]
+CMD ["gunicorn","--preload","-b","0.0.0.0:5000","-w","2","--log-level","info","--capture-output","wsgi:app"]
 
 # Flat /health inside container (no external prefix)
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \

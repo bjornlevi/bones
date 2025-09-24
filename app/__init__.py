@@ -6,14 +6,20 @@ from .config import Config
 from app.models import SiteUser
 from .routes import register_blueprints
 from .auth_client import login as auth_login, userinfo as auth_userinfo, auth_service_request
-import os
+import logging, os, time, json
+from logging import StreamHandler
+
+def configure_logging():
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not any(isinstance(h, StreamHandler) for h in root.handlers):
+        root.addHandler(StreamHandler())
 
 login_manager = LoginManager()
 
 class ScriptNameFromForwardedPrefix:
-    """Set SCRIPT_NAME so url_for() includes external /prefix."""
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, app): self.app = app
     def __call__(self, environ, start_response):
         prefix = environ.get("HTTP_X_FORWARDED_PREFIX") or environ.get("HTTP_X_SCRIPT_NAME")
         if prefix:
@@ -21,75 +27,74 @@ class ScriptNameFromForwardedPrefix:
         return self.app(environ, start_response)
 
 def create_app():
+    configure_logging()
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Prefix & proxy handling
+    # prefix/proxy handling (for /bones)
     app.wsgi_app = ScriptNameFromForwardedPrefix(app.wsgi_app)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     db.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = "main.login"   # adjust if your login route is elsewhere
+    login_manager.login_view = "main.login"
 
     @login_manager.user_loader
     def load_user(user_id):
         return SiteUser.query.get(int(user_id))
 
-    # Make SITE_NAME available in all templates
-    app.jinja_env.globals["SITE_NAME"] = app.config.get("SITE_NAME", "site")
+    register_blueprints(app)
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}, 200
+
+    return app
+
+
+def bootstrap_defaults(app):
+    """Run once (master) before workers fork: create schema, ensure admin exists in auth-service and locally."""
+    from sqlalchemy.exc import OperationalError
+    from time import sleep
 
     with app.app_context():
+        # wait for DB a bit
+        for _ in range(12):
+            try:
+                db.session.execute(db.text("SELECT 1"))
+                break
+            except OperationalError:
+                sleep(2)
         db.create_all()
 
-        if not app.config.get("AUTH_SERVICE_API_KEY"):
-            raise RuntimeError("[BOOTSTRAP ERROR] AUTH_SERVICE_API_KEY is not set in environment")
+        # ensure we can talk to auth-service
+        api_key = app.config.get("AUTH_SERVICE_API_KEY")
+        if not api_key:
+            raise RuntimeError("AUTH_SERVICE_API_KEY is not set")
 
-        username = f"{app.config.get('SITE_NAME', 'site')}_admin"
+        username = f"{app.config.get('SITE_NAME','site')}_admin"
         password = app.config["SITE_ADMIN_PASSWORD"]
 
-        # ✅ Step 1: Try login first
+        # try login; if fails, register then login
         data, status = auth_login(username, password)
-
         if status != 200:
-            # ✅ Step 2: Try register
-            reg_data, reg_status = auth_service_request(
-                "/register",
-                {"username": username, "password": password}
-            )
-            if reg_status == 201:
-                print(f"[BOOTSTRAP] Created {username} on auth service")
-                data, status = auth_login(username, password)
-            elif reg_status == 400:
-                print(f"[BOOTSTRAP] {username} already exists on auth service")
+            reg_data, reg_status = auth_service_request("/register", {"username": username, "password": password})
+            if reg_status in (200, 201, 400):  # 400 if already exists
                 data, status = auth_login(username, password)
 
         if status == 200 and data:
             token = data["token"]
-            info, status = auth_userinfo(token)
-            if status == 200 and info:
+            info, s2 = auth_userinfo(token)
+            if s2 == 200 and info:
                 auth_user_id = info["id"]
-
-                site_user = SiteUser.query.filter_by(auth_user_id=auth_user_id).first()
-                if not site_user:
-                    db.session.add(
-                        SiteUser(
-                            auth_user_id=auth_user_id,
-                            username=info["username"],   # ✅ populate username
-                            email=info.get("email"),     # ✅ if provided
-                            role="admin"
-                        )
-                    )
+                su = SiteUser.query.filter_by(auth_user_id=auth_user_id).first()
+                if not su:
+                    su = SiteUser(auth_user_id=auth_user_id,
+                                  username=info.get("username") or username,
+                                  email=info.get("email"),
+                                  role="admin")
+                    db.session.add(su)
                     db.session.commit()
-                    print(f"[BOOTSTRAP] {info['username']} linked to auth_user_id={auth_user_id} with local admin role")
+                    logging.getLogger("bootstrap").info("bones_admin_linked", extra={"auth_user_id": auth_user_id})
         else:
-            print(f"[BOOTSTRAP WARNING] Could not create or login {username} on auth service")
-
-
-    register_blueprints(app)
-
-    @app.get("/health")
-    def health():  # flat health for container checks
-        return {"status": "ok"}, 200
-
-    return app
+            logging.getLogger("bootstrap").warning("bones_auth_setup_failed")

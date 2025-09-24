@@ -1,56 +1,68 @@
 init:
 	./init_env.sh
 
-check-net:
+check-nets:
 	@if ! docker network ls --format '{{.Name}}' | grep -q '^authnet$$'; then \
 		echo "❌ Network 'authnet' not found. Please run 'make up' in auth-service first."; \
 		exit 1; \
 	fi
+	@if ! docker network ls --format '{{.Name}}' | grep -q '^web$$'; then \
+		echo "❌ Network 'web' not found. Please start Traefik (or create the 'web' network)."; \
+		exit 1; \
+	fi
 
-up: check-net
+up: check-nets
 	docker compose up -d --build
 
 down:
 	docker compose down
 
 logs:
-	docker compose logs -f web
+	docker compose logs -f bones
 
 shell:
-	docker compose exec web flask shell
+	docker compose exec bones sh
 
 test:
-	docker compose run --rm web pytest -v tests
+	docker compose run --rm bones pytest -v tests
 
-# Flask-only shortcuts
+# App-only shortcuts
 fdown:
-	docker compose stop web && docker compose rm -f web
+	docker compose stop bones && docker compose rm -f bones
 
 fup:
-	docker compose up --build -d web
+	docker compose up --build -d bones
+
+# health checks
+HOST ?= 127.0.0.1
+health-authnet:
+	docker run --rm --network authnet curlimages/curl:latest -si http://bones:5000/health
+
+health-web:
+	docker run --rm --network web curlimages/curl:latest -si http://traefik/bones/health
+
+health-host:
+	curl -si "http://$(HOST)/bones/health"
+
+health-all:
+	@ec=0; for t in health-authnet health-web health-host; do echo "── $$t"; $(MAKE) -s $$t || ec=1; echo; done; \
+	if [ $$ec -eq 0 ]; then echo "✅ bones: ALL HEALTH CHECKS PASSED"; else echo "❌ bones: SOME HEALTH CHECKS FAILED"; fi; exit $$ec
+
+# quick API smoke against auth-service via bones env
+test-auth:
+	@HOST=$${HOST:-127.0.0.1}; \
+	BASE="http://$$HOST/bones/api"; \
+	APIKEY=$$(grep '^AUTH_SERVICE_API_KEY=' .env | cut -d= -f2); \
+	USER=$$(grep '^SITE_NAME=' .env | cut -d= -f2)_admin; \
+	PASS=$$(grep '^SITE_ADMIN_PASSWORD=' .env | cut -d= -f2); \
+	echo "→ Login to auth-service as $$USER"; \
+	TOKEN=$$(curl -s -X POST "$$BASE/login" -H "Content-Type: application/json" -H "X-API-Key: $$APIKEY" -d "{\"username\":\"$$USER\",\"password\":\"$$PASS\"}" | jq -r .token); \
+	test -n "$$TOKEN" -a "$$TOKEN" != "null" || { echo "❌ login failed"; exit 1; }; \
+	echo "→ userinfo"; curl -s -X POST "$$BASE/userinfo" -H "Content-Type: application/json" -H "X-API-Key: $$APIKEY" -d "{\"token\":\"$$TOKEN\"}" | jq .; \
+	echo "→ verify";   curl -s -X POST "$$BASE/verify"   -H "Content-Type: application/json" -H "X-API-Key: $$APIKEY" -d "{\"token\":\"$$TOKEN\"}" | jq .
 
 reset: down
 	@echo "⚠️  Removing .env and DB volumes to start fresh..."
 	@rm -f .env
-	@docker volume rm $$(docker volume ls -q | grep bones_site-db-data) || true
+	@docker volume rm $$(docker volume ls -q | grep -E '^bones-db-data$$') || true
 	@echo "✅ Reset complete. Run 'make init' to create a new .env."
-
-# ----------------------------
-# 🔐 Encryption Additions
-# ----------------------------
-
-migrate:
-	docker compose exec database sh -lc "mysql -uroot -p$$MYSQL_ROOT_PASSWORD $$MYSQL_DATABASE < /app/migrations/001_init.sql"
-
-ingest:
-	REMOTE_URL=$${REMOTE_URL:-file:///app/tests/data/dummy.json} docker compose exec app python scripts/ingest.py
-
-vault-init:
-	@echo "🔐 Initializing Vault Transit Engine..."
-	docker compose exec vault sh -lc 'export VAULT_ADDR=$$VAULT_ADDR && \
-		vault secrets enable -path=$$VAULT_TRANSIT_MOUNT transit || true && \
-		vault write -f $$VAULT_TRANSIT_MOUNT/keys/$$VAULT_APP_KEY_NAME || true && \
-		vault write -f $$VAULT_TRANSIT_MOUNT/keys/$$VAULT_DBCOL_KEY_NAME || true'
-	@echo "✅ Vault Transit keys initialized"
-
-.PHONY: up down logs shell test fdown fup reset migrate ingest vault-init
