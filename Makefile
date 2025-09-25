@@ -51,7 +51,7 @@ health-all:
 # quick API smoke against auth-service via bones env
 test-auth:
 	@HOST=$${HOST:-127.0.0.1}; \
-	BASE="http://$$HOST/bones/api"; \
+	BASE="http://$$HOST/auth-service/api"; \
 	APIKEY=$$(grep '^AUTH_SERVICE_API_KEY=' .env | cut -d= -f2); \
 	USER=$$(grep '^SITE_NAME=' .env | cut -d= -f2)_admin; \
 	PASS=$$(grep '^SITE_ADMIN_PASSWORD=' .env | cut -d= -f2); \
@@ -64,5 +64,5 @@ test-auth:
 reset: down
 	@echo "⚠️  Removing .env and DB volumes to start fresh..."
 	@rm -f .env
-	@docker volume rm $$(docker volume ls -q | grep -E '^bones-db-data$$') || true
-	@echo "✅ Reset complete. Run 'make init' to create a new .env."
+	-@docker volume rm $$(docker volume ls -q | grep -E '^bones_bones-db-data$$') 2>/dev/null || true
+	@echo "✅ Reset complete. Run 'make init' to create a new .env. Add API and 'make up'"

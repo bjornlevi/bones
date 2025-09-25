@@ -5,16 +5,20 @@ import logging
 
 log = logging.getLogger("bones.auth_client")
 
-def _mask(d: dict) -> dict:
-    if not isinstance(d, dict):
-        return d
-    m = {}
-    for k, v in d.items():
-        if k.lower() in {"password", "token", "authorization"}:
-            m[k] = "****"
-        else:
-            m[k] = v
-    return m
+def _mask(value):
+    """Recursively mask sensitive fields in dicts/lists."""
+    if isinstance(value, dict):
+        masked = {}
+        for k, v in value.items():
+            if k.lower() in {"password", "token", "authorization"}:
+                masked[k] = "****"
+            else:
+                masked[k] = _mask(v)
+        return masked
+    elif isinstance(value, list):
+        return [_mask(v) for v in value]
+    else:
+        return value
 
 def _request_id():
     # propagate inbound request id if present
@@ -27,23 +31,31 @@ def auth_service_request(endpoint, data):
 
     try:
         res = requests.post(url, headers=headers, json=data, timeout=5)
-        safe_data = dict(data)
-        if "password" in safe_data:
-            safe_data["password"] = "***"
+
+        # Mask request data
+        safe_req = _mask(data)
+
+        # Mask response (JSON if possible; else truncate text)
+        try:
+            safe_body = _mask(res.json())
+        except Exception:
+            safe_body = res.text[:200]
+
         log.info(
             "outbound_request %s %s status=%s body=%s",
             url,
-            data,
+            safe_req,
             res.status_code,
-            res.text[:200],
+            safe_body,
         )
     except requests.exceptions.RequestException as e:
-        log.error("outbound_request_failed", extra={"error": str(e), "endpoint": endpoint})
+        log.error("outbound_request_failed endpoint=%s error=%s", endpoint, str(e))
         return {"error": str(e)}, 500
 
     if res.status_code not in (200, 201):
         return None, res.status_code
     return res.json(), res.status_code
+
 
 def login(username, password):
     """Authenticate a user against the auth service."""

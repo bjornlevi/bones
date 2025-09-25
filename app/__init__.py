@@ -1,4 +1,5 @@
 from flask import Flask
+from sqlalchemy import or_
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_login import LoginManager
 from app.extensions import db
@@ -87,8 +88,15 @@ def bootstrap_defaults(app):
             info, s2 = auth_userinfo(token)
             if s2 == 200 and info:
                 auth_user_id = info["id"]
-                su = SiteUser.query.filter_by(auth_user_id=auth_user_id).first()
-                if not su:
+                uname = info.get("username") or username
+                su = SiteUser.query.filter(
+                    or_(SiteUser.auth_user_id == auth_user_id,
+                        SiteUser.username == uname)
+                ).first()
+                if su:
+                    su.auth_user_id = auth_user_id
+                    db.session.commit()
+                else:
                     su = SiteUser(auth_user_id=auth_user_id,
                                   username=info.get("username") or username,
                                   email=info.get("email"),
